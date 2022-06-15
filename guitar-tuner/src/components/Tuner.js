@@ -1,14 +1,48 @@
 import { useEffect, useRef } from "react";
-import Canvas from "./Canvas";
+// import Canvas from "./Canvas";
 import autoCorrelate from "../utils/autoCorelate.js";
-let audioContext, stream;
+import styled from "styled-components";
+import ChordMap from "./ChordMap.js";
+
+const MainContainer = styled.div`
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+const MainContainer2 = styled.div`
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid black;
+`;
+
+const GuitarContainer = styled.div`
+  display: inline-block;
+  width: 600px;
+  height: 600px;
+  margin: 0 auto;
+  position: relative;
+  border: 1px solid blue;
+`;
+
+const GuitarImage = styled.img`
+  position: absolute;
+  z-index: 1;
+`;
+
+const GuitarTuningKeyCanvas = styled.canvas`
+  position: relative;
+  z-index: 20;
+`;
 
 export default function Tuner() {
   const canvasRef = useRef(null);
 
   const setupActiveTuner = (stream) => {
-    audioContext =
-      audioContext || new (window.AudioContext || window.webkitAudioContext)();
+    const audioContext = new (window.AudioContext ||
+      window.webkitAudioContext)();
 
     let source = audioContext.createMediaStreamSource(stream);
     let analyser = audioContext.createAnalyser();
@@ -50,7 +84,7 @@ export default function Tuner() {
 
   const initActiveTuner = async () => {
     try {
-      stream = await startMicrophone();
+      const stream = await startMicrophone();
       setupActiveTuner(stream);
     } catch (error) {
       console.log("initActiveTuner error:", error.message);
@@ -66,17 +100,50 @@ export default function Tuner() {
   });
 
   useEffect(() => {
+    const x = 100;
+    const y = 122;
+    const radius = 20;
+    const distanceY = 109;
+    const distanceX = 365;
     const ctx = canvasRef.current.getContext("2d");
     ctx.canvas.width = 600;
     ctx.canvas.height = 600;
-    ctx.arc(300, 300, 150, 0, Math.PI * 2, true);
+    ctx.arc(x, y, radius, 0, Math.PI * 2, true);
+    ctx.moveTo(x + radius, y + distanceY);
+    ctx.arc(x, y + distanceY, radius, 0, Math.PI * 2, true);
+    ctx.moveTo(x + radius, y + distanceY * 2);
+    ctx.arc(x, y + distanceY * 2, radius, 0, Math.PI * 2, true);
+    ctx.moveTo(x + radius + distanceX, y);
+    ctx.arc(x + distanceX, y, radius, 0, Math.PI * 2, true);
+    ctx.moveTo(x + radius + distanceX, y + distanceY);
+    ctx.arc(x + distanceX, y + distanceY, radius, 0, Math.PI * 2, true);
+    ctx.moveTo(x + radius + distanceX, y + distanceY * 2);
+    ctx.arc(x + distanceX, y + distanceY * 2, radius, 0, Math.PI * 2, true);
     ctx.stroke();
   }, []);
 
   return (
-    <>
-      {/* <div>Test Root</div> */}
-      <canvas ref={canvasRef} />
-    </>
+    <MainContainer>
+      <MainContainer2>
+        <GuitarContainer>
+          <GuitarImage src={require("../image/guitar.png")} alt="guitar" />
+          <GuitarTuningKeyCanvas ref={canvasRef} />
+        </GuitarContainer>
+        <ChordMap />
+      </MainContainer2>
+    </MainContainer>
   );
 }
+
+/*
+
+[x] draw six turning key canvas circle
+[] click note event, and interactive with turning key
+[] click note style
+[] constraint only one note can be clicked for each string
+[] auto-detect switch
+[] tuner quick search drop down menu
+[] determinated tune start and stop
+[] tune score logic
+
+*/

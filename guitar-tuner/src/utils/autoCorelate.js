@@ -63,6 +63,5 @@ export default function autoCorrelate(buffer, sampleRate) {
   if (a) {
     T0 = T0 - b / (2 * a);
   }
-
   return sampleRate / T0;
 }
