@@ -1,10 +1,11 @@
 import { NoteFrequencies } from "../constants/guitarNote";
-
+import { useSelector, useDispatch } from "react-redux";
+import { updateData } from "./noteSlice.js";
 import styled from "styled-components";
 
 const NoteContainer = styled.div`
   position: relative;
-  border: 1px solid red;
+  /* border: 1px solid red; */
 `;
 
 const NoteElement = styled.td`
@@ -16,8 +17,11 @@ const NoteElement = styled.td`
 `;
 
 function Note({ index, values }) {
+  const dispatch = useDispatch();
+
   const handleClick = (e, data) => {
     console.log(data);
+    dispatch(updateData({ [`S${data.sn}`]: data }));
   };
   return (
     <tr>
@@ -26,7 +30,9 @@ function Note({ index, values }) {
         <NoteElement
           value={v.value}
           name={6 - i}
-          onClick={(e) => handleClick(e, { frequency: v.value, index: 6 - i })}
+          onClick={(e) =>
+            handleClick(e, { frequency: v.value, sn: 6 - i, name: v.name })
+          }
           key={`${index}-${i}`}
         >
           {v.name}
