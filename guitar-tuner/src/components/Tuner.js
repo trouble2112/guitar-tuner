@@ -4,6 +4,7 @@ import autoCorrelate from "../utils/autoCorelate.js";
 import styled from "styled-components";
 import ChordMap from "./ChordMap.js";
 import { useSelector, useDispatch } from "react-redux";
+import { updateSelected } from "./noteSlice.js";
 
 const MainContainer = styled.div`
   height: 100vh;
@@ -25,7 +26,7 @@ const GuitarContainer = styled.div`
   height: 600px;
   margin: 0 auto;
   position: relative;
-  /* border: 1px solid blue; */
+  border: 1px solid blue;
 `;
 
 const GuitarImage = styled.img`
@@ -40,8 +41,30 @@ const GuitarTuningKeyCanvas = styled.canvas`
 
 export default function Tuner() {
   const note = useSelector((state) => state.note.data);
+  const dispatch = useDispatch();
 
   const canvasRef = useRef(null);
+  const coordinatesRef = useRef(null);
+
+  const checkClickTurningKey = (x, y) => {
+    if (!coordinatesRef.current) {
+      return null;
+    }
+    const coordinates = coordinatesRef.current;
+    const inRadiusRange = (a, b, centerX, centerY) => {
+      return (
+        Math.sqrt(Math.abs(a - centerX) ** 2 + Math.abs(b - centerY) ** 2) <
+        coordinates.radius + 12
+      );
+    };
+    const keys = ["S6", "S5", "S4", "S3", "S2", "S1"];
+    for (const key of keys) {
+      if (inRadiusRange(x, y, ...coordinates[key])) {
+        return key;
+      }
+    }
+    return null;
+  };
 
   const setupActiveTuner = (stream) => {
     const audioContext = new (window.AudioContext ||
@@ -103,14 +126,17 @@ export default function Tuner() {
   });
 
   useEffect(() => {
+    console.log("draw1");
+
     const x = 100;
     const y = 122;
-    const radius = 20;
+    const radius = 30;
     const distanceY = 109;
     const distanceX = 365;
     const textX = 11;
     const textY = 11;
     const ctx = canvasRef.current.getContext("2d");
+    const coordinates = { radius: 20 };
     ctx.canvas.width = 600;
     ctx.canvas.height = 600;
     ctx.font = "2rem Arial";
@@ -118,35 +144,106 @@ export default function Tuner() {
     const { S6, S5, S4, S3, S2, S1 } = note;
 
     // S4
+    ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2, true);
     ctx.moveTo(x + radius, y + distanceY);
     ctx.fillText(S4.name, x - textX, y + textY);
+    coordinates.S4 = [x, y];
 
     // S5
     ctx.arc(x, y + distanceY, radius, 0, Math.PI * 2, true);
     ctx.moveTo(x + radius, y + distanceY * 2);
     ctx.fillText(S5.name, x - textX, y + textY + distanceY);
+    coordinates.S5 = [x, y + distanceY];
 
     // S6
     ctx.arc(x, y + distanceY * 2, radius, 0, Math.PI * 2, true);
     ctx.moveTo(x + radius + distanceX, y);
     ctx.fillText(S6.name, x - textX, y + textY + distanceY * 2);
+    coordinates.S6 = [x, y + distanceY * 2];
 
     // S3
     ctx.arc(x + distanceX, y, radius, 0, Math.PI * 2, true);
     ctx.moveTo(x + radius + distanceX, y + distanceY);
     ctx.fillText(S3.name, x - textX + distanceX, y + textY);
+    coordinates.S3 = [x + distanceX, y];
 
     // S2
     ctx.arc(x + distanceX, y + distanceY, radius, 0, Math.PI * 2, true);
     ctx.moveTo(x + radius + distanceX, y + distanceY * 2);
     ctx.fillText(S2.name, x - textX + distanceX, y + textY + distanceY);
+    coordinates.S2 = [x + distanceX, y + distanceY];
 
     // S1
     ctx.arc(x + distanceX, y + distanceY * 2, radius, 0, Math.PI * 2, true);
     ctx.fillText(S1.name, x - textX + distanceX, y + textY + distanceY * 2);
+    coordinates.S1 = [x + distanceX, y + distanceY * 2];
+    coordinatesRef.current = coordinates;
     ctx.stroke();
+
+    if (note.selected) {
+      const [rx, ry] = coordinatesRef.current[note.selected];
+      const gradient = ctx.createRadialGradient(
+        rx,
+        ry,
+        radius / 2,
+        rx,
+        ry,
+        radius
+      );
+      gradient.addColorStop(0, "rgba(50,30,160,0.7)");
+      gradient.addColorStop(0.9, "white");
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(rx, ry, radius, 0, 2 * Math.PI, true);
+      ctx.fill();
+
+      let deegres = 0;
+      let result = 3.6 * 80;
+      const acrInterval = setInterval(function () {
+        deegres += 1;
+
+        ctx.beginPath();
+        ctx.arc(
+          rx,
+          ry,
+          radius,
+          (Math.PI / 180) * 270,
+          (Math.PI / 180) * (270 + 360)
+        );
+        ctx.strokeStyle = "#b1b1b1";
+        ctx.lineWidth = "10";
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.strokeStyle = "#3949AB";
+        ctx.lineWidth = "10";
+        ctx.arc(
+          rx,
+          ry,
+          radius,
+          (Math.PI / 180) * 270,
+          (Math.PI / 180) * (270 + deegres)
+        );
+        ctx.stroke();
+        if (deegres >= result) clearInterval(acrInterval);
+      }, 5);
+    }
   }, [note]);
+
+  useEffect(() => {
+    function handleMove(e) {
+      // console.log(e)
+    }
+    function handleClick(e) {
+      const clickedKey = checkClickTurningKey(e.layerX, e.layerY);
+      if (clickedKey) {
+        dispatch(updateSelected(clickedKey));
+      }
+    }
+    canvasRef.current.addEventListener("mousemove", handleMove);
+    canvasRef.current.addEventListener("click", handleClick);
+  }, [dispatch]);
 
   return (
     <MainContainer>

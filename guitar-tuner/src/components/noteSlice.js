@@ -10,15 +10,19 @@ export const noteSlice = createSlice({
       S3: { frequency: 196, sn: 3, name: "G" },
       S2: { frequency: 246.94, sn: 2, name: "B" },
       S1: { frequency: 329.63, sn: 1, name: "E" },
+      selected: null,
     },
   },
   reducers: {
     updateData: (state, action) => {
       state.data = { ...state.data, ...action.payload };
     },
+    updateSelected: (state, action) => {
+      state.data = { ...state.data, selected: action.payload };
+    },
   },
 });
 
-export const { updateData } = noteSlice.actions;
+export const { updateData, updateSelected } = noteSlice.actions;
 
 export default noteSlice.reducer;
