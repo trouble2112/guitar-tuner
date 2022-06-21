@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 // import Canvas from "./Canvas";
 import autoCorrelate from "../utils/autoCorelate.js";
 import styled from "styled-components";
@@ -8,29 +8,32 @@ import { updateSelected } from "./noteSlice.js";
 
 const MainContainer = styled.div`
   height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 20% 20% 20% 20% 20%;
+  grid-template-rows: 20% 20% 20% 20% 20%;
 `;
 const MainContainer2 = styled.div`
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* border: 1px solid black; */
+  border: 1px solid black;
 `;
 
 const GuitarContainer = styled.div`
-  display: inline-block;
-  width: 600px;
-  height: 600px;
-  margin: 0 auto;
+  display: flex;
+  justify-content: right;
+  align-items: flex-start;
   position: relative;
   border: 1px solid blue;
+  grid-column: 1 / span 3;
+  grid-row: 2 / span 4;
 `;
 
 const GuitarImage = styled.img`
   position: absolute;
+  width: 600px;
+  height: 600px;
   z-index: 1;
 `;
 
@@ -39,12 +42,29 @@ const GuitarTuningKeyCanvas = styled.canvas`
   z-index: 20;
 `;
 
+const MeterContainer = styled.div`
+  border: 1px solid red;
+  grid-column: 2 / span 3;
+  grid-row: 1 / span 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+`;
+const MeterCanvas = styled.canvas`
+  position: relative;
+  z-index: 20;
+  border: 1px solid green;
+`;
+
 export default function Tuner() {
+  const [turnOn, setTurnOn] = useState(false);
   const note = useSelector((state) => state.note.data);
   const dispatch = useDispatch();
 
   const canvasRef = useRef(null);
+  const canvasMeterRef = useRef(null);
   const coordinatesRef = useRef(null);
+  const tdb = useRef([]);
 
   const checkClickTurningKey = (x, y) => {
     if (!coordinatesRef.current) {
@@ -66,6 +86,26 @@ export default function Tuner() {
     return null;
   };
 
+  const analyserRecentSample = (recentSample) => {
+    recentSample = recentSample.map((k) => {
+      return Math.round(k[1]);
+    });
+    const mostCommon = recentSample
+      .sort(
+        (a, b) =>
+          recentSample.filter((v) => v === a).length -
+          recentSample.filter((v) => v === b).length
+      )
+      .pop();
+    if (
+      recentSample.filter((x) => Math.abs(mostCommon - x) <= 1).length >
+      recentSample.length * 0.7
+    ) {
+      return mostCommon;
+    }
+    return -1;
+  };
+
   const setupActiveTuner = (stream) => {
     const audioContext = new (window.AudioContext ||
       window.webkitAudioContext)();
@@ -75,25 +115,39 @@ export default function Tuner() {
     source.connect(analyser);
     analyser.fftSize = 4096;
 
-    const E$ = 82.41;
     const draw = () => {
       requestAnimationFrame(draw);
       let buffer = new Float32Array(4096);
       analyser.getFloatTimeDomainData(buffer);
       const autoCorrelateValue = autoCorrelate(buffer, audioContext.sampleRate);
-      autoCorrelateValue !== -1 && console.log(autoCorrelateValue);
-      if (autoCorrelateValue !== -1) {
-        let offset = Math.abs(E$ - autoCorrelateValue) * 100;
-        const ctx = canvasRef.current.getContext("2d");
-        ctx.beginPath();
-        ctx.fillStyle = "green";
-        // https://stackoverflow.com/questions/32642399/simplest-way-to-plot-points-randomly-inside-a-circle
-        const pt_angle = Math.random() * 2 * Math.PI;
-        const pt_radius_sq = Math.random() * offset * offset;
-        const pt_x = Math.sqrt(pt_radius_sq) * Math.cos(pt_angle);
-        const pt_y = Math.sqrt(pt_radius_sq) * Math.sin(pt_angle);
-        ctx.arc(pt_x + 300, pt_y + 300, 5, 0, Math.PI * 2, true);
-        ctx.fill();
+      autoCorrelateValue !== -1 &&
+        tdb.current.push([Date.now(), autoCorrelateValue]);
+      if (autoCorrelateValue !== -1 && note.selected) {
+        tdb.current = tdb.current.slice(-100);
+        const recentSample = tdb.current.filter(
+          (v) => Date.now() - v[0] < 500
+          // &&
+          // Math.abs(note[note.selected]?.frequency - v[1]) < 10
+        );
+        const recentFreq = analyserRecentSample(recentSample);
+        if (recentFreq !== -1) {
+          setTurnOn(true);
+          console.log(recentSample.sort((a, b) => a[0] > b[0]).pop());
+        } else {
+          setTurnOn(false);
+          console.log("waiting");
+        }
+        // let offset = Math.abs(E$ - autoCorrelateValue) * 100;
+        // const ctx = canvasRef.current.getContext("2d");
+        // ctx.beginPath();
+        // ctx.fillStyle = "green";
+        // // https://stackoverflow.com/questions/32642399/simplest-way-to-plot-points-randomly-inside-a-circle
+        // const pt_angle = Math.random() * 2 * Math.PI;
+        // const pt_radius_sq = Math.random() * offset * offset;
+        // const pt_x = Math.sqrt(pt_radius_sq) * Math.cos(pt_angle);
+        // const pt_y = Math.sqrt(pt_radius_sq) * Math.sin(pt_angle);
+        // ctx.arc(pt_x + 300, pt_y + 300, 5, 0, Math.PI * 2, true);
+        // ctx.fill();
       }
     };
     draw();
@@ -126,13 +180,11 @@ export default function Tuner() {
   });
 
   useEffect(() => {
-    console.log("draw1");
-
     const x = 100;
-    const y = 122;
+    const y = 120;
     const radius = 30;
-    const distanceY = 109;
-    const distanceX = 365;
+    const distanceY = 104;
+    const distanceX = 400;
     const textX = 11;
     const textY = 11;
     const ctx = canvasRef.current.getContext("2d");
@@ -227,9 +279,33 @@ export default function Tuner() {
         );
         ctx.stroke();
         if (deegres >= result) clearInterval(acrInterval);
-      }, 5);
+      }, 1);
     }
   }, [note]);
+
+  useEffect(() => {
+    const ctx = canvasMeterRef.current.getContext("2d");
+    const width = 600;
+    const height = 120;
+    ctx.canvas.width = width;
+    ctx.canvas.height = height;
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = "white";
+    ctx.fillRect(300 - 3, 20, 6, 80);
+    ctx.fillRect(330 - 2, 20, 4, 80);
+    ctx.fillRect(270 - 2, 20, 4, 80);
+    ctx.fillRect(360 - 2, 20, 4, 80);
+    ctx.fillRect(240 - 2, 20, 4, 80);
+    ctx.fillRect(400 - 1, 20, 2, 80);
+    ctx.fillRect(200 - 1, 20, 2, 80);
+    ctx.fillRect(440 - 1, 20, 2, 80);
+    ctx.fillRect(160 - 1, 20, 2, 80);
+    ctx.fillRect(480 - 1, 20, 2, 80);
+    ctx.fillRect(120 - 1, 20, 2, 80);
+    ctx.fillRect(540 - 1, 20, 2, 80);
+    ctx.fillRect(60 - 1, 20, 2, 80);
+  }, [note.selected]);
 
   useEffect(() => {
     function handleMove(e) {
@@ -240,6 +316,7 @@ export default function Tuner() {
       if (clickedKey) {
         dispatch(updateSelected(clickedKey));
       }
+      console.log(JSON.stringify(tdb.current));
     }
     canvasRef.current.addEventListener("mousemove", handleMove);
     canvasRef.current.addEventListener("click", handleClick);
@@ -247,13 +324,14 @@ export default function Tuner() {
 
   return (
     <MainContainer>
-      <MainContainer2>
-        <GuitarContainer>
-          <GuitarImage src={require("../image/guitar.png")} alt="guitar" />
-          <GuitarTuningKeyCanvas ref={canvasRef} />
-        </GuitarContainer>
-        <ChordMap />
-      </MainContainer2>
+      <MeterContainer>
+        <MeterCanvas ref={canvasMeterRef} />
+      </MeterContainer>
+      <GuitarContainer>
+        <GuitarImage src={require("../image/guitar.png")} alt="guitar" />
+        <GuitarTuningKeyCanvas ref={canvasRef} />
+      </GuitarContainer>
+      <ChordMap />
     </MainContainer>
   );
 }
@@ -262,8 +340,9 @@ export default function Tuner() {
 
 [x] draw six turning key canvas circle
 [x] click note event, and interactive with turning key
-[] click note style
-[] constraint only one note can be clicked for each string
+[x] click note style
+[x] constraint only one note can be clicked for each string
+[] virtualize when turn on
 [] auto-detect switch
 [] tuner quick search drop down menu
 [] determinated tune start and stop

@@ -5,7 +5,10 @@ import styled from "styled-components";
 
 const NoteContainer = styled.div`
   position: relative;
-  /* border: 1px solid red; */
+  border: 1px solid black;
+  grid-column: 4/span 1;
+  grid-row: 2/span 4;
+  padding-top: 5%;
 `;
 
 const NoteElement = styled.td`
