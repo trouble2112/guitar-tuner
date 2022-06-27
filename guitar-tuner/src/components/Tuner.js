@@ -9,15 +9,8 @@ import { updateSelected } from "./noteSlice.js";
 const MainContainer = styled.div`
   height: 100vh;
   display: grid;
-  grid-template-columns: 20% 20% 20% 20% 20%;
-  grid-template-rows: 20% 20% 20% 20% 20%;
-`;
-const MainContainer2 = styled.div`
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid black;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(5, 1fr);
 `;
 
 const GuitarContainer = styled.div`
@@ -26,7 +19,7 @@ const GuitarContainer = styled.div`
   align-items: flex-start;
   position: relative;
   border: 1px solid blue;
-  grid-column: 1 / span 3;
+  grid-column: 2 / span 5;
   grid-row: 2 / span 4;
 `;
 
@@ -43,15 +36,16 @@ const GuitarTuningKeyCanvas = styled.canvas`
 `;
 
 const MeterContainer = styled.div`
+  position: relative;
   border: 1px solid red;
-  grid-column: 2 / span 3;
+  grid-column: 2 / span 5;
   grid-row: 1 / span 1;
   display: flex;
   align-items: flex-end;
   justify-content: center;
 `;
 const MeterCanvas = styled.canvas`
-  position: relative;
+  position: absolute;
   z-index: 20;
   border: 1px solid green;
 `;
@@ -62,9 +56,12 @@ export default function Tuner() {
   const dispatch = useDispatch();
 
   const canvasRef = useRef(null);
-  const canvasMeterRef = useRef(null);
+  const canvasBGMeterRef = useRef(null);
+  const canvasFGMeterRef = useRef(null);
   const coordinatesRef = useRef(null);
   const tdb = useRef([]);
+  const tds = useRef([]);
+  const acr = useRef(0);
 
   const checkClickTurningKey = (x, y) => {
     if (!coordinatesRef.current) {
@@ -87,21 +84,18 @@ export default function Tuner() {
   };
 
   const analyserRecentSample = (recentSample) => {
-    recentSample = recentSample.map((k) => {
-      return Math.round(k[1]);
-    });
-    const mostCommon = recentSample
-      .sort(
-        (a, b) =>
-          recentSample.filter((v) => v === a).length -
-          recentSample.filter((v) => v === b).length
-      )
-      .pop();
-    if (
-      recentSample.filter((x) => Math.abs(mostCommon - x) <= 1).length >
-      recentSample.length * 0.7
-    ) {
-      return mostCommon;
+    recentSample = recentSample.map((k) => k[1]);
+    console.log('recentSample', recentSample)
+    const mostCommon = recentSample.sort(
+      (a, b) =>
+        recentSample.filter((v) => v === a).length -
+        recentSample.filter((v) => v === b).length
+    )[0];
+    const commonSample = recentSample.filter(
+      (x) => Math.abs(mostCommon - x) <= 1
+    );
+    if (commonSample.length > recentSample.length * 0.6) {
+      return commonSample;
     }
     return -1;
   };
@@ -122,19 +116,28 @@ export default function Tuner() {
       const autoCorrelateValue = autoCorrelate(buffer, audioContext.sampleRate);
       autoCorrelateValue !== -1 &&
         tdb.current.push([Date.now(), autoCorrelateValue]);
+      if (autoCorrelateValue === -1) {
+        acr.current += 1;
+      }
+      if (acr.current === 50) {
+        tds.current = [];
+        setTurnOn(false);
+        acr.current = 0;
+      }
       if (autoCorrelateValue !== -1 && note.selected) {
         tdb.current = tdb.current.slice(-100);
         const recentSample = tdb.current.filter(
-          (v) => Date.now() - v[0] < 500
+          (v) => Date.now() - v[0] < 800
           // &&
           // Math.abs(note[note.selected]?.frequency - v[1]) < 10
         );
         const recentFreq = analyserRecentSample(recentSample);
         if (recentFreq !== -1) {
+          tds.current.push(...recentFreq);
           setTurnOn(true);
-          console.log(recentSample.sort((a, b) => a[0] > b[0]).pop());
         } else {
           setTurnOn(false);
+          tds.current = [];
           console.log("waiting");
         }
         // let offset = Math.abs(E$ - autoCorrelateValue) * 100;
@@ -283,14 +286,41 @@ export default function Tuner() {
     }
   }, [note]);
 
+  // meter canvas animate
   useEffect(() => {
-    const ctx = canvasMeterRef.current.getContext("2d");
-    const width = 600;
-    const height = 120;
-    ctx.canvas.width = width;
-    ctx.canvas.height = height;
+    if (turnOn) {
+      const ctx = canvasFGMeterRef.current.getContext("2d");
+      const { width, height } = ctx.canvas;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "rgba(0,200,30,0.5)";
+      const { frequency } = note[note.selected];
+      let requestId;
+      const draw = () => {
+        requestId = requestAnimationFrame(draw);
+        console.log("frequency", frequency, tds.current.slice(-10));
+        ctx.save();
+        tds.current.slice(-10).forEach((v) => {
+          setTimeout(() => {
+            ctx.fillRect((300 * v) / frequency, 20, 4, 80);
+          }, 2);
+          ctx.restore();
+        });
+        if (tds.current.length === 0) {
+          console.log("cancel", requestId);
+          window.cancelAnimationFrame(requestId);
+          requestId = undefined;
+          ctx.clearRect(0, 0, width, height);
+        }
+      };
+      draw();
+    }
+  }, [turnOn, note]);
+
+  // background meter canvas
+  useEffect(() => {
+    const ctx = canvasBGMeterRef.current.getContext("2d");
     ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.fillStyle = "white";
     ctx.fillRect(300 - 3, 20, 6, 80);
     ctx.fillRect(330 - 2, 20, 4, 80);
@@ -305,7 +335,7 @@ export default function Tuner() {
     ctx.fillRect(120 - 1, 20, 2, 80);
     ctx.fillRect(540 - 1, 20, 2, 80);
     ctx.fillRect(60 - 1, 20, 2, 80);
-  }, [note.selected]);
+  }, []);
 
   useEffect(() => {
     function handleMove(e) {
@@ -325,7 +355,8 @@ export default function Tuner() {
   return (
     <MainContainer>
       <MeterContainer>
-        <MeterCanvas ref={canvasMeterRef} />
+        <MeterCanvas ref={canvasBGMeterRef} width="600" height="120" />
+        <MeterCanvas ref={canvasFGMeterRef} width="600" height="120" />
       </MeterContainer>
       <GuitarContainer>
         <GuitarImage src={require("../image/guitar.png")} alt="guitar" />

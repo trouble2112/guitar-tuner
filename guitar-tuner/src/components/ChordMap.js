@@ -6,7 +6,7 @@ import styled from "styled-components";
 const NoteContainer = styled.div`
   position: relative;
   border: 1px solid black;
-  grid-column: 4/span 1;
+  grid-column: 7/span 2;
   grid-row: 2/span 4;
   padding-top: 5%;
 `;
